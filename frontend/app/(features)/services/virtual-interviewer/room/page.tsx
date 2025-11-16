@@ -22,6 +22,7 @@ export default function InterviewRoomPage() {
   // Lock the UI to voice-only mode (text is kept in code but not exposed)
   const [inputMode, setInputMode] = useState<InputMode>("voice");
   const [isRecording, setIsRecording] = useState(false);
+  const [micSupported, setMicSupported] = useState(false);
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   const router = useRouter();
   
@@ -388,9 +389,69 @@ export default function InterviewRoomPage() {
     }
   };
 
+  // Compatibility wrapper that returns a MediaStream or throws a descriptive error
+  const getUserMediaCompat = async (constraints: MediaStreamConstraints): Promise<MediaStream> => {
+    // If navigator isn't available the code is running in a server context
+    if (typeof navigator === "undefined") {
+      throw new Error("Navigator is undefined — microphone access is only available in the browser.");
+    }
+
+    // Modern browsers (guard with optional chaining to avoid read errors)
+    try {
+      const md = (navigator as any)?.mediaDevices;
+      if (md && typeof md.getUserMedia === "function") {
+        return await md.getUserMedia(constraints);
+      }
+    } catch (err) {
+      // Defensive: some environments may throw when trying to access mediaDevices
+      console.warn("Failed to access navigator.mediaDevices safely:", err);
+    }
+
+    // Legacy callback-style APIs (older Safari/Chrome builds)
+    const legacyGetUserMedia = (navigator as any).getUserMedia || (navigator as any).webkitGetUserMedia || (navigator as any).mozGetUserMedia;
+    if (legacyGetUserMedia) {
+      // Wrap in a Promise
+      return new Promise((resolve, reject) => {
+        legacyGetUserMedia.call(navigator, constraints, resolve, reject);
+      });
+    }
+
+    // No getUserMedia support — provide actionable hint for debugging
+    throw new Error("getUserMedia not supported by your browser. Requires a secure origin (https or localhost) and a compatible browser.");
+  };
+
+  useEffect(() => {
+    // Check microphone capability in client-only environment
+    try {
+      const supported = !!(
+        (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) ||
+        (navigator as any).getUserMedia ||
+        (navigator as any).webkitGetUserMedia ||
+        (navigator as any).mozGetUserMedia
+      );
+      if (!supported) {
+        console.warn("Microphone API not available (navigator):", { navigatorExists: typeof navigator !== 'undefined', mediaDevices: (navigator as any)?.mediaDevices, userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : 'none', isSecureContext: typeof window !== 'undefined' ? window.isSecureContext : false });
+      }
+      setMicSupported(supported);
+    } catch (e) {
+      setMicSupported(false);
+    }
+  }, []);
+
   const startRecording = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // Fail early if browser doesn't provide microphone API
+      if (!micSupported) {
+        const secure = (window.isSecureContext === true);
+        // Provide a friendly message for common issues (secure origin, unsupported browser)
+        const msg = secure
+          ? "Your browser does not allow microphone access. Try a different browser (Chrome, Edge) or update your settings."
+          : "Microphone access requires a secure connection (https) or localhost. Please run the app over https or on localhost.";
+        throw new Error(msg);
+      }
+
+      // Use compatibility wrapper to support older vendor prefixes
+      const stream = await getUserMediaCompat({ audio: true });
       const mediaRecorder = new MediaRecorder(stream);
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
@@ -415,7 +476,8 @@ export default function InterviewRoomPage() {
       toast.info("Recording...");
     } catch (error) {
       console.error("Failed to start recording:", error);
-      toast.error("Failed to access microphone");
+      const msg = (error && (error as any).message) ? (error as any).message : "Failed to access microphone";
+      toast.error(msg);
     }
   };
 
@@ -624,7 +686,8 @@ export default function InterviewRoomPage() {
                   <div className="flex gap-3 items-center justify-center">
                     <Button
                       onClick={isRecording ? stopRecording : startRecording}
-                      disabled={state !== "ready" && !isRecording}
+                      disabled={(state !== "ready" && !isRecording) || !micSupported}
+                      title={!micSupported ? "Microphone not available: ensure https or localhost and allow mic permissions" : undefined}
                       size="lg"
                       className={`relative flex-shrink-0 h-[90px] w-[90px] rounded-full transition-all duration-300 ${
                         isRecording 
@@ -663,6 +726,11 @@ export default function InterviewRoomPage() {
                         ? "Transcribing and analyzing your response"
                         : "Hold down and speak your answer clearly"}
                     </p>
+                    {!micSupported && (
+                      <p className="mt-1 text-xs text-rose-500">
+                        Microphone access not available. Ensure you're on a secure origin (https or localhost) and allow mic permission in your browser.
+                      </p>
+                    )}
                   </div>
                 </div>
               </>
