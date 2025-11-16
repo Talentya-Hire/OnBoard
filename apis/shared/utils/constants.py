@@ -1,12 +1,12 @@
 from pathlib import Path
 
 DEFAULT_PATHS = {
-    "embedding_models": str(Path("~/.cache/onboard/embedding_models").expanduser()),
-    "parsing_models": str(Path("~/.cache/onboard/parsing_models").expanduser()),
-    "database": str(Path("~/.cache/onboard/database").expanduser()),  # knowledge base of career guide
-    "jobs_db": str(Path("~/.cache/onboard/jobs_db").expanduser()),  # job matcher vector database
-    "logs": str(Path("~/.cache/onboard/logs").expanduser()),
-    "temp": str(Path("~/.cache/onboard/temp").expanduser()),  # for CVs and job descriptions
+    "embedding_models": str(Path("~/app/.cache/onboard/embedding_models").expanduser()),
+    "parsing_models": str(Path("~/app/.cache/onboard/parsing_models").expanduser()),
+    "database": str(Path("~/app/.cache/onboard/database").expanduser()),  # knowledge base of career guide
+    "jobs_db": str(Path("~/app/.cache/onboard/jobs_db").expanduser()),  # job matcher vector database
+    "logs": str(Path("~/app/.cache/onboard/logs").expanduser()),
+    "temp": str(Path("~/app/.cache/onboard/temp").expanduser()),  # for CVs and job descriptions
 }
 
 
