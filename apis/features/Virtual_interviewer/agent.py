@@ -18,9 +18,6 @@ from features.Virtual_interviewer.prompts import (
     PERSONA_ANNOUNCEMENT_TEMPLATE,
     OPENING_MESSAGE_TEMPLATE,
     INTERVIEW_ENDED_BY_CANDIDATE,
-    # Don't send the plain 'INTERVIEW_COMPLETE_MESSAGE' or the full
-    # 'INTERVIEW_REPORT_HEADER' into the live chat anymore — the client
-    # should be redirected via JSON. We still keep save-failure messages.
     INTERVIEW_SAVE_FAILED,
     REPORT_GENERATION_FAILED,
 )
@@ -28,12 +25,12 @@ from shared.helpers.logger import get_logger
 
 logger = get_logger(__name__)
 
-# Initialize Supabase client
+# Supabase connection
 supabase: Client = create_client(
     os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_SERVICE_ROLE_KEY")
 )
 
-# Persona configuration
+# Available interviewer personas
 PERSONAS = {
     "alex_chen": {
         "name": "Alex Chen",
@@ -85,7 +82,7 @@ PERSONAS = {
 DEFAULT_PERSONA = PERSONAS["alex_chen"]
 
 
-# Voice mapping for each persona - using official ElevenLabs voice IDs
+# ElevenLabs voice IDs per persona
 PERSONA_VOICES = {
     "alex_chen": "cgSgspJ2msm6clMCkdW9",  # Rachel
     "sarah_williams": "EXAVITQu4vr4xnSDxMaL",  # Clyde
@@ -96,7 +93,7 @@ PERSONA_VOICES = {
 
 
 class Agent:
-    """Interview agent - not a singleton, created per WebSocket session"""
+    """Interview agent (one per WebSocket session)"""
 
     def __init__(self, persona_key: str = "alex_chen", user_id: str | None = None):
         self.client = groq.Client(api_key=os.getenv("GROQ_API_KEY"))
@@ -105,8 +102,7 @@ class Agent:
         self.persona_key = persona_key
         self.reset_interview_state()
         self.analyzer = InterviewAnalyzer()
-        # The user ID will be provided when the agent is created from the API
-        # gateway. If None, the code will fall back to env var CURRENT_USER_ID.
+        # Falls back to env var CURRENT_USER_ID if not provided
         self.user_id = user_id
 
     def reset_interview_state(self):
@@ -129,7 +125,7 @@ class Agent:
             return True
         logger.warning(f"Invalid persona key: {persona_key}")
         return False
-    
+
     def get_voice_id(self) -> str:
         """Get the ElevenLabs voice ID for the current persona"""
         return PERSONA_VOICES.get(self.persona_key, PERSONA_VOICES["alex_chen"])
@@ -139,7 +135,7 @@ class Agent:
         return PERSONAS
 
     def should_end_interview(self, messages: list) -> bool:
-        """Determine if the interview should end based on various criteria"""
+        """Check if interview should end"""
         if (
             self.interview_state["message_count"]
             >= self.interview_state["max_messages"]
@@ -172,13 +168,13 @@ class Agent:
         """Generate system prompt for the interviewer"""
         persona = self.current_persona
         self.system_prompt = SYSTEM_PROMPT_TEMPLATE.format(
-            persona_name=persona['name'],
-            persona_role=persona['role'],
-            persona_company=persona['company'],
-            persona_years_experience=persona['years_experience'],
-            persona_style=persona['style'],
-            persona_difficulty=persona['difficulty'],
-            persona_tone=persona['tone']
+            persona_name=persona["name"],
+            persona_role=persona["role"],
+            persona_company=persona["company"],
+            persona_years_experience=persona["years_experience"],
+            persona_style=persona["style"],
+            persona_difficulty=persona["difficulty"],
+            persona_tone=persona["tone"],
         )
         return self.system_prompt
 
@@ -186,12 +182,12 @@ class Agent:
         """Create an announcement message about the interviewer"""
         persona = self.current_persona
         return PERSONA_ANNOUNCEMENT_TEMPLATE.format(
-            persona_name=persona['name'],
-            persona_role=persona['role'],
-            persona_company=persona['company'],
-            persona_years_experience=persona['years_experience'],
-            persona_style=persona['style'],
-            persona_difficulty=persona['difficulty']
+            persona_name=persona["name"],
+            persona_role=persona["role"],
+            persona_company=persona["company"],
+            persona_years_experience=persona["years_experience"],
+            persona_style=persona["style"],
+            persona_difficulty=persona["difficulty"],
         ).strip()
 
     def generate_interview_report(
@@ -206,7 +202,7 @@ class Agent:
     async def save_interview_to_database(
         self, report: Dict[str, Any], messages: List[Dict[str, str]]
     ) -> str:
-        """Save interview report to Supabase and return interview ID"""
+        """Save interview report and return interview ID"""
         try:
             from features.Virtual_interviewer.interview_analyzer import (
                 generate_pdf_bytes,
@@ -215,19 +211,18 @@ class Agent:
             # Generate PDF
             pdf_bytes = generate_pdf_bytes(report)
 
-            # Prefer the user ID passed when the agent was created; if not
-            # present fall back to env var. The env var is only used for testing.
+            # Use provided user ID or fallback to env var
             user_id = self.user_id or os.getenv("CURRENT_USER_ID")
             if not user_id:
                 logger.warning("No user_id found, using default test user")
                 user_id = "00000000-0000-0000-0000-000000000000"
 
-            # Create timestamp for unique filename
             from datetime import timezone
+
             timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
             interview_id = f"{timestamp}_{user_id[:8]}"
 
-            # Upload PDF to storage
+            # Upload PDF
             pdf_filename = f"{user_id}/{timestamp}_{interview_id}.pdf"
             pdf_upload = supabase.storage.from_("interview-pdfs").upload(
                 pdf_filename,
@@ -235,19 +230,16 @@ class Agent:
                 file_options={"content-type": "application/pdf"},
             )
 
-            # Get public URL
+            # Get PDF URL
             pdf_url = supabase.storage.from_("interview-pdfs").get_public_url(
                 pdf_filename
             )
 
-            # Count exchanges (user messages only)
+            # Count user exchanges
             exchanges_count = len([m for m in messages if m.get("role") == "user"])
 
-            # Prepare interview data - map to database schema column names
-            # The generated report nests the numeric metrics under "performance_scores".
-            # Older code incorrectly tried to read values from top-level keys like
-            # 'technical_score' which returns None. Use the nested structure with
-            # a fallback to the old keys for backward compatibility.
+            # Extract performance scores (nested under "performance_scores")
+            # Falls back to top-level keys for backward compatibility
             performance = report.get("performance_scores", {}) or {}
 
             interview_data = {
@@ -259,9 +251,9 @@ class Agent:
                     "difficulty", "Intermediate"
                 ),
                 "total_exchanges": exchanges_count,
-                # Prefer the nested 'performance_scores' block, fall back to top-level
-                # keys if present (older report versions).
-                "overall_score": performance.get("overall_score", report.get("overall_score", 0)),
+                "overall_score": performance.get(
+                    "overall_score", report.get("overall_score", 0)
+                ),
                 "technical_competency": performance.get(
                     "technical_competency", report.get("technical_score", 0)
                 ),
@@ -284,7 +276,7 @@ class Agent:
                 "pdf_url": pdf_url,
             }
 
-            # Insert into database
+            # Save to database
             result = supabase.table("interviews").insert(interview_data).execute()
 
             interview_id = result.data[0]["id"]
@@ -301,11 +293,7 @@ class Agent:
         return format_report_for_display(report)
 
     def should_persist_report(self) -> bool:
-        """Return True if the interview should be persisted.
-
-        The report should only be saved if the interviewer intentionally
-        completed the session by reaching the max_messages threshold.
-        """
+        """Save report only if interview reached max_messages (intentional end)"""
         return self.interview_state.get("message_count", 0) >= self.interview_state.get(
             "max_messages", 0
         )
@@ -314,17 +302,19 @@ class Agent:
         """Handle WebSocket connection for interview session"""
         self.reset_interview_state()
 
-        # Send persona announcement ONCE at the start
+        # Send persona introduction
         persona_announcement = self.get_persona_announcement()
         await websocket.send(persona_announcement)
         logger.info(f"Starting interview with persona: {self.current_persona['name']}")
 
-        # Set up system prompt
+        # Initialize system prompt
         system_prompt = self.getSystemPrompt()
         messages = [{"role": "system", "content": system_prompt}]
 
-        # Send opening message
-        opening_message = OPENING_MESSAGE_TEMPLATE.format(persona_name=self.current_persona['name'])
+        # Start with opening message
+        opening_message = OPENING_MESSAGE_TEMPLATE.format(
+            persona_name=self.current_persona["name"]
+        )
         await websocket.send(opening_message)
         messages.append({"role": "assistant", "content": opening_message})
 
@@ -362,49 +352,51 @@ class Agent:
             if self.should_end_interview(messages):
                 self.interview_state["should_end"] = True
 
-        # Do not send an explicit INTERVIEW_COMPLETE_MESSAGE to the client UI;
-        # that message caused the frontend to display a completion text while
-        # we want to log completions on the backend and rely on the saved
-        # interview JSON message to drive frontend redirection.
-        logger.info("Interview completed (checking save criteria before generating report)")
-        
+        # Don't send completion message to UI—let the saved interview ID drive redirects
+        logger.info(
+            "Interview completed (checking save criteria before generating report)"
+        )
+
         logger.info(
             f"Interview completed after {self.interview_state['message_count']} messages"
         )
 
-        # Only generate a report and persist to the database if the interviewer
-        # intentionally ended the session by reaching the configured message
-        # limit (i.e., a controlled termination by the interviewer).
-        # This avoids generating and saving a summary prematurely when clients
-        # disconnect, refresh, or encounter transient errors.
+        # Only save if interview reached max_messages (intentional end)
+        # Skips saving on disconnect or client refresh
         if self.should_persist_report():
             try:
                 report = self.generate_interview_report(messages)
                 formatted_report = format_report_for_display(report)
 
-                # Save to Supabase first so we can include the ID in the message
+                # Save to database first to get the ID
                 try:
-                    interview_id = await self.save_interview_to_database(report, messages)
+                    interview_id = await self.save_interview_to_database(
+                        report, messages
+                    )
                 except Exception as db_error:
-                    logger.error(f"Failed to save interview before sending report: {db_error}")
+                    logger.error(
+                        f"Failed to save interview before sending report: {db_error}"
+                    )
                     interview_id = None
 
-                # We intentionally do NOT send the formatted report to the client
-                # in the live room — this avoids leaking long analysis text into
-                # the chat UI. The report is saved to the database and the client
-                # is notified with a compact JSON message containing the ID.
+                # Don't send full report to live chat (keep it clean)
+                # Client gets a compact JSON message with the interview ID
                 logger.info("Interview report generated (not sent to live client)")
 
-                # After the report is sent, notify the client that we saved the interview
+                # Notify client we saved the interview
                 if interview_id:
                     try:
-                        await websocket.send(json.dumps({"type": "interview_saved", "id": interview_id}))
+                        await websocket.send(
+                            json.dumps({"type": "interview_saved", "id": interview_id})
+                        )
                     except websockets.ConnectionClosed:
                         logger.info("Report saved but client disconnected")
                     except Exception as send_err:
-                        logger.error(f"Failed to send interview_saved message: {send_err}")
+                        logger.error(
+                            f"Failed to send interview_saved message: {send_err}"
+                        )
                 else:
-                    # Save failed — notify the client
+                    # Save failed, notify client
                     try:
                         await websocket.send(INTERVIEW_SAVE_FAILED)
                     except websockets.ConnectionClosed:
@@ -416,33 +408,30 @@ class Agent:
                 except websockets.ConnectionClosed:
                     pass
         else:
-            # Interview ended without reaching the max_messages threshold
-            # -- treat this as an unintentional termination (e.g., disconnect)
-            # and avoid generating/saving the report.
+            # Interview ended early (unintentional)—skip saving
             logger.info(
                 "Interview ended before max_messages; skipping report generation and database save"
             )
 
+
 async def handle_agent_connection(websocket):
-    """Handler for creating agent instances per connection with persona from URL"""
+    """Create agent instance per connection with persona from URL params"""
     try:
-        # Parse persona from query params
-        # In websockets 13+, we access the request object directly from the websocket
         from urllib.parse import urlparse, parse_qs
-        
-        # Get the path from the websocket request (websockets 13+ API)
+
+        # Extract path from WebSocket request
         parsed_path = websocket.request.path
         logger.debug(f"Connection path: {parsed_path}")
-        
-        # Parse query params from path
+
+        # Parse URL params
         parsed = urlparse(parsed_path)
         query_params = parse_qs(parsed.query)
-        persona_key = query_params.get('persona', ['alex_chen'])[0]
-        user_id = query_params.get('user_id', [None])[0]
-        
+        persona_key = query_params.get("persona", ["alex_chen"])[0]
+        user_id = query_params.get("user_id", [None])[0]
+
         logger.info(f"New agent connection with persona: {persona_key}")
-        
-        # Create new agent instance for this connection
+
+        # Create agent for this session
         agent = Agent(persona_key=persona_key, user_id=user_id)
         await agent.handle_connection(websocket)
     except Exception as e:
@@ -456,12 +445,12 @@ async def handle_agent_connection(websocket):
 async def start_agent_server():
     """Start the WebSocket server"""
     agent_ws_url = os.getenv("AGENT_WS_URL", "ws://localhost:8765")
-    # Parse the URL to extract host and port
     from urllib.parse import urlparse
+
     parsed = urlparse(agent_ws_url)
     host = parsed.hostname or "localhost"
-    port = parsed.port or 8765
-    
+    port = parsed.port or 8765  # Extract host and port from URL
+
     async with websockets.serve(
         handle_agent_connection,
         host,
