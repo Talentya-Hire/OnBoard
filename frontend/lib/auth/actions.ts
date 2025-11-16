@@ -3,6 +3,11 @@
 import { createClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
+import {
+  getEmailConfirmationRedirectUrl,
+  getPasswordResetRedirectUrl,
+  getOAuthRedirectUrl,
+} from "./redirect-config";
 
 export type AuthResult = {
   success: boolean;
@@ -39,13 +44,14 @@ export async function signUp(formData: FormData): Promise<AuthResult> {
   }
 
   const supabase = await createClient();
-  const origin = (await headers()).get("origin");
+  const origin = (await headers()).get("origin") || undefined;
+  const redirectUrl = getEmailConfirmationRedirectUrl(origin);
 
   const { error } = await supabase.auth.signUp({
     email,
     password,
     options: {
-      emailRedirectTo: `${origin}/auth/callback`,
+      emailRedirectTo: redirectUrl,
     },
   });
 
@@ -57,7 +63,7 @@ export async function signUp(formData: FormData): Promise<AuthResult> {
         type: "signup",
         email,
         options: {
-          emailRedirectTo: `${origin}/auth/callback`,
+          emailRedirectTo: redirectUrl,
         },
       });
       
@@ -102,12 +108,13 @@ export async function signIn(formData: FormData): Promise<AuthResult> {
 
 export async function signInWithGoogle(): Promise<{ url: string | null; error?: string }> {
   const supabase = await createClient();
-  const origin = (await headers()).get("origin");
+  const origin = (await headers()).get("origin") || undefined;
+  const redirectUrl = getOAuthRedirectUrl(origin);
 
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: "google",
     options: {
-      redirectTo: `${origin}/auth/callback`,
+      redirectTo: redirectUrl,
     },
   });
 
@@ -120,12 +127,13 @@ export async function signInWithGoogle(): Promise<{ url: string | null; error?: 
 
 export async function signInWithLinkedIn(): Promise<{ url: string | null; error?: string }> {
   const supabase = await createClient();
-  const origin = (await headers()).get("origin");
+  const origin = (await headers()).get("origin") || undefined;
+  const redirectUrl = getOAuthRedirectUrl(origin);
 
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: "linkedin_oidc",
     options: {
-      redirectTo: `${origin}/auth/callback`,
+      redirectTo: redirectUrl,
       scopes: "openid profile email",
     },
   });
@@ -145,10 +153,11 @@ export async function resetPassword(formData: FormData): Promise<AuthResult> {
   }
 
   const supabase = await createClient();
-  const origin = (await headers()).get("origin");
+  const origin = (await headers()).get("origin") || undefined;
+  const redirectUrl = getPasswordResetRedirectUrl(origin);
 
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${origin}/auth/callback?next=/reset-password`,
+    redirectTo: redirectUrl,
   });
 
   if (error) {
@@ -205,13 +214,14 @@ export async function signOut(): Promise<void> {
 
 export async function resendConfirmationEmail(email: string): Promise<AuthResult> {
   const supabase = await createClient();
-  const origin = (await headers()).get("origin");
+  const origin = (await headers()).get("origin") || undefined;
+  const redirectUrl = getEmailConfirmationRedirectUrl(origin);
 
   const { error } = await supabase.auth.resend({
     type: "signup",
     email,
     options: {
-      emailRedirectTo: `${origin}/auth/callback`,
+      emailRedirectTo: redirectUrl,
     },
   });
 

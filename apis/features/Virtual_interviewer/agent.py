@@ -455,14 +455,21 @@ async def handle_agent_connection(websocket):
 
 async def start_agent_server():
     """Start the WebSocket server"""
+    agent_ws_url = os.getenv("AGENT_WS_URL", "ws://localhost:8765")
+    # Parse the URL to extract host and port
+    from urllib.parse import urlparse
+    parsed = urlparse(agent_ws_url)
+    host = parsed.hostname or "localhost"
+    port = parsed.port or 8765
+    
     async with websockets.serve(
         handle_agent_connection,
-        "localhost",
-        8765,
+        host,
+        port,
         ping_interval=20,
         ping_timeout=60,
     ):
-        logger.info("Agent WebSocket server started on ws://localhost:8765")
+        logger.info(f"Agent WebSocket server started on {agent_ws_url}")
         await asyncio.Future()
 
 
