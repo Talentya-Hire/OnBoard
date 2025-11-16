@@ -112,7 +112,7 @@ class Agent:
             "has_asked_technical": False,
             "has_covered_background": False,
             "should_end": False,
-            "max_messages": 10,
+            "max_messages": 4,
             "ending_phase": False,
         }
 

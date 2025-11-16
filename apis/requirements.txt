@@ -25,6 +25,7 @@ langchain-cerebras
 langchain-google-genai
 langchain-openai
 openai
+ollama
 
 # Database
 chromadb
