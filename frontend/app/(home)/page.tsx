@@ -93,12 +93,6 @@ export default async function Home() {
               <div className="absolute -left-14 -top-10 w-64 h-64 rounded-full bg-gradient-to-br from-purple-500/40 via-pink-500/30 to-blue-500/20 blur-3xl animate-drift-slow" />
               <div className="absolute -right-8 top-24 w-52 h-52 rounded-full bg-gradient-to-br from-emerald-500/30 via-cyan-400/20 blur-2xl animate-float-slow" />
 
-              {/* Floating panels */}
-              <div className="absolute left-2 top-2 p-4 rounded-xl bg-card/80 border border-border shadow-md transition-all hover:-translate-y-2" >
-                <div className="text-sm font-semibold text-foreground">Resume AI</div>
-                <div className="text-xs text-muted-foreground">Rewrite & optimize your CV</div>
-              </div>
-
               {/* Removed empty blue floating orb */}
 
               {/* Decorative rotated accent */}
