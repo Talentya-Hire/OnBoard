@@ -113,8 +113,8 @@ export default function CareerGuidePage() {
 
       const guide = await generateCareerGuide(
         userId,
-        cvSource.type === 'file' ? cvSource.file : null,
-        cvSource.type === 'database' ? cvSource.cv.anonymized_cv_text : null,
+        cvSource!.type === 'file' ? cvSource!.file : null,
+        cvSource!.type === 'database' ? cvSource!.cv.anonymized_cv_text : null,
         currentJob,
         domain,
         useTargetJob ? targetJob : null,
@@ -135,7 +135,7 @@ export default function CareerGuidePage() {
 
   // Handle restart
   const handleRestart = () => {
-    setCvFile(null);
+    setCvSource(null);
     setCurrentJob('');
     setTargetJob('');
     setDomain('');
