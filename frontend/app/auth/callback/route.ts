@@ -2,7 +2,11 @@ import { createClient } from "@/utils/supabase/server";
 import { NextResponse } from "next/server";
 
 export async function GET(request: Request) {
-  const { searchParams, origin } = new URL(request.url);
+  const { searchParams } = new URL(request.url);
+  // Try to get forward-aware origin — helpful when behind a proxy or load balancer
+  const forwardedHost = request.headers.get("x-forwarded-host") || request.headers.get("host");
+  const forwardedProto = request.headers.get("x-forwarded-proto") || request.headers.get("x-forwarded-protocol") || request.headers.get("x-forwarded-scheme");
+  const origin = forwardedHost ? `${forwardedProto ?? "https"}://${forwardedHost}` : new URL(request.url).origin;
   const code = searchParams.get("code");
   const next = searchParams.get("next") ?? "/services/dashboard";
 

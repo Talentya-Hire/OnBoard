@@ -44,7 +44,17 @@ export async function signUp(formData: FormData): Promise<AuthResult> {
   }
 
   const supabase = await createClient();
-  const origin = (await headers()).get("origin") || undefined;
+  const headerList = await headers();
+  let origin = headerList.get("origin") || undefined;
+
+  // If origin header isn't provided (common on server callbacks), try forwards headers
+  if (!origin) {
+    const forwardedHost = headerList.get("x-forwarded-host") || headerList.get("host");
+    const forwardedProto = headerList.get("x-forwarded-proto") || headerList.get("x-forwarded-protocol") || headerList.get("x-forwarded-scheme");
+    if (forwardedHost) {
+      origin = `${forwardedProto ?? "https"}://${forwardedHost}`;
+    }
+  }
   const redirectUrl = getEmailConfirmationRedirectUrl(origin);
 
   const { error } = await supabase.auth.signUp({
@@ -108,7 +118,15 @@ export async function signIn(formData: FormData): Promise<AuthResult> {
 
 export async function signInWithGoogle(): Promise<{ url: string | null; error?: string }> {
   const supabase = await createClient();
-  const origin = (await headers()).get("origin") || undefined;
+  const headerList = await headers();
+  let origin = headerList.get("origin") || undefined;
+  if (!origin) {
+    const forwardedHost = headerList.get("x-forwarded-host") || headerList.get("host");
+    const forwardedProto = headerList.get("x-forwarded-proto") || headerList.get("x-forwarded-protocol") || headerList.get("x-forwarded-scheme");
+    if (forwardedHost) {
+      origin = `${forwardedProto ?? "https"}://${forwardedHost}`;
+    }
+  }
   const redirectUrl = getOAuthRedirectUrl(origin);
 
   const { data, error } = await supabase.auth.signInWithOAuth({
@@ -127,7 +145,15 @@ export async function signInWithGoogle(): Promise<{ url: string | null; error?: 
 
 export async function signInWithLinkedIn(): Promise<{ url: string | null; error?: string }> {
   const supabase = await createClient();
-  const origin = (await headers()).get("origin") || undefined;
+  const headerList = await headers();
+  let origin = headerList.get("origin") || undefined;
+  if (!origin) {
+    const forwardedHost = headerList.get("x-forwarded-host") || headerList.get("host");
+    const forwardedProto = headerList.get("x-forwarded-proto") || headerList.get("x-forwarded-protocol") || headerList.get("x-forwarded-scheme");
+    if (forwardedHost) {
+      origin = `${forwardedProto ?? "https"}://${forwardedHost}`;
+    }
+  }
   const redirectUrl = getOAuthRedirectUrl(origin);
 
   const { data, error } = await supabase.auth.signInWithOAuth({
@@ -153,7 +179,15 @@ export async function resetPassword(formData: FormData): Promise<AuthResult> {
   }
 
   const supabase = await createClient();
-  const origin = (await headers()).get("origin") || undefined;
+  const headerList = await headers();
+  let origin = headerList.get("origin") || undefined;
+  if (!origin) {
+    const forwardedHost = headerList.get("x-forwarded-host") || headerList.get("host");
+    const forwardedProto = headerList.get("x-forwarded-proto") || headerList.get("x-forwarded-protocol") || headerList.get("x-forwarded-scheme");
+    if (forwardedHost) {
+      origin = `${forwardedProto ?? "https"}://${forwardedHost}`;
+    }
+  }
   const redirectUrl = getPasswordResetRedirectUrl(origin);
 
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
@@ -214,7 +248,15 @@ export async function signOut(): Promise<void> {
 
 export async function resendConfirmationEmail(email: string): Promise<AuthResult> {
   const supabase = await createClient();
-  const origin = (await headers()).get("origin") || undefined;
+  const headerList = await headers();
+  let origin = headerList.get("origin") || undefined;
+  if (!origin) {
+    const forwardedHost = headerList.get("x-forwarded-host") || headerList.get("host");
+    const forwardedProto = headerList.get("x-forwarded-proto") || headerList.get("x-forwarded-protocol") || headerList.get("x-forwarded-scheme");
+    if (forwardedHost) {
+      origin = `${forwardedProto ?? "https"}://${forwardedHost}`;
+    }
+  }
   const redirectUrl = getEmailConfirmationRedirectUrl(origin);
 
   const { error } = await supabase.auth.resend({

@@ -10,7 +10,13 @@
  * @returns The redirect URL for email confirmations
  */
 export function getEmailConfirmationRedirectUrl(origin?: string): string {
-    const envUrl = process.env.NEXT_PUBLIC_SUPABASE_REDIRECT_URL;
+    // Prioritize explicit env var for redirect (set per deployment)
+    const envUrl =
+        process.env.NEXT_PUBLIC_SUPABASE_REDIRECT_URL ||
+        process.env.NEXT_PUBLIC_SITE_URL ||
+        // Vercel provides VERCEL_URL without protocol in prod
+        (process.env.NEXT_PUBLIC_VERCEL_URL ? `https://${process.env.NEXT_PUBLIC_VERCEL_URL}` : undefined) ||
+        (process.env.NEXT_PUBLIC_HOST ? `http://${process.env.NEXT_PUBLIC_HOST}` : undefined);
     if (envUrl) {
         return envUrl;
     }
@@ -33,7 +39,11 @@ export function getEmailConfirmationRedirectUrl(origin?: string): string {
  * @returns The redirect URL for password reset emails
  */
 export function getPasswordResetRedirectUrl(origin?: string): string {
-    const envUrl = process.env.NEXT_PUBLIC_SUPABASE_PASSWORD_RESET_REDIRECT_URL;
+    const envUrl =
+        process.env.NEXT_PUBLIC_SUPABASE_PASSWORD_RESET_REDIRECT_URL ||
+        process.env.NEXT_PUBLIC_SITE_URL ||
+        (process.env.NEXT_PUBLIC_VERCEL_URL ? `https://${process.env.NEXT_PUBLIC_VERCEL_URL}` : undefined) ||
+        (process.env.NEXT_PUBLIC_HOST ? `http://${process.env.NEXT_PUBLIC_HOST}` : undefined);
     if (envUrl) {
         return envUrl;
     }
@@ -56,7 +66,11 @@ export function getPasswordResetRedirectUrl(origin?: string): string {
  * @returns The redirect URL for OAuth callbacks
  */
 export function getOAuthRedirectUrl(origin?: string): string {
-    const envUrl = process.env.NEXT_PUBLIC_SUPABASE_REDIRECT_URL;
+    const envUrl =
+        process.env.NEXT_PUBLIC_SUPABASE_REDIRECT_URL ||
+        process.env.NEXT_PUBLIC_SITE_URL ||
+        (process.env.NEXT_PUBLIC_VERCEL_URL ? `https://${process.env.NEXT_PUBLIC_VERCEL_URL}` : undefined) ||
+        (process.env.NEXT_PUBLIC_HOST ? `http://${process.env.NEXT_PUBLIC_HOST}` : undefined);
     if (envUrl) {
         return envUrl;
     }
